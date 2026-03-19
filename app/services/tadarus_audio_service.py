@@ -7,6 +7,7 @@ from transformers import Wav2Vec2Processor, Wav2Vec2Model
 
 from app.utils.audio_utils import save_upload, ensure_wav
 from app.services.tadarus_asr_service import transcribe_tadarus
+from app.services.tadarus_service import evaluate_tadarus, get_score_band
 
 # =========================================================
 SAMPLE_RATE = 16000
@@ -115,6 +116,9 @@ def evaluate_audio_only(
     ayat_score = ayat_similarity(ayat_text, user_text) * 100
     audio_score = audio_similarity(ref_path, user_path) * 100
 
+    # Detail kesalahan pengucapan huruf dari evaluator tadarus
+    text_scores, text_issues, text_suggestions = evaluate_tadarus(ayat_text, user_text)
+
     print(f"[AYAT SCORE ] {ayat_score:.2f}")
     print(f"[AUDIO SCORE] {audio_score:.2f}")
 
@@ -139,6 +143,11 @@ def evaluate_audio_only(
             "final": final_score,
             "ayat": int(ayat_score),
             "audio": int(audio_score),
+            "band": get_score_band(final_score),
+            "ayat_band": text_scores.get("band", get_score_band(int(ayat_score))),
+            "audio_band": get_score_band(int(audio_score)),
         },
+        "issues": text_issues,
+        "suggestions": text_suggestions,
     }
 

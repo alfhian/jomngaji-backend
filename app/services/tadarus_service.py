@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 from difflib import SequenceMatcher
 
 # =========================================================
@@ -8,98 +9,162 @@ DIACRITICS_PATTERN = re.compile(r"[\u0610-\u061A\u064B-\u065F\u0670\u06ED]")
 TATWEEL_PATTERN = re.compile(r"[\u0640]")  # tatweel ـ
 PRESENTATION_FORMS_PATTERN = re.compile(r"[\uFB50-\uFDFF\uFE70-\uFEFF]")
 
+SCORE_BANDS = [
+    {"min": 96, "max": 100, "code": "mumtaz", "label": "Mumtaz"},
+    {"min": 90, "max": 95, "code": "excellent", "label": "Sangat Baik"},
+    {"min": 83, "max": 89, "code": "very_good", "label": "Baik Sekali"},
+    {"min": 75, "max": 82, "code": "good", "label": "Baik"},
+    {"min": 65, "max": 74, "code": "fair", "label": "Cukup"},
+    {"min": 50, "max": 64, "code": "needs_improvement", "label": "Perlu Peningkatan"},
+    {"min": 35, "max": 49, "code": "basic", "label": "Dasar"},
+    {"min": 0, "max": 34, "code": "beginner", "label": "Pemula"},
+]
+
+
 def normalize_quran(text: str, keep_spaces: bool = True) -> str:
-    """
-    Normalisasi teks Qur'an untuk evaluasi:
-    - Hapus harakat (karena Whisper tidak output harakat)
-    - Hapus ligature/presentation forms & tatweel
-    - Normalisasi huruf umum (أ/إ/آ/ٱ → ا, ى → ي, ة → ه)
-    - Normalisasi spasi
-    """
     if not text:
         return ""
-    # Hapus ligature & tatweel
+
     text = PRESENTATION_FORMS_PATTERN.sub("", text)
     text = TATWEEL_PATTERN.sub("", text)
-    # Hapus non-Arabic kecuali spasi
     text = re.sub(r"[^\u0600-\u06FF\s]", "", text)
-    # Hapus harakat
     text = DIACRITICS_PATTERN.sub("", text)
-    # Normalisasi huruf
-    text = (text.replace("أ", "ا")
-                .replace("إ", "ا")
-                .replace("آ", "ا")
-                .replace("ٱ", "ا")
-                .replace("ى", "ي")
-                .replace("ة", "ه"))
-    # Normalisasi spasi
-    if keep_spaces:
-        text = re.sub(r"\s+", " ", text).strip()
-    else:
-        text = text.replace(" ", "")
-    return text
+    text = (
+        text.replace("أ", "ا")
+        .replace("إ", "ا")
+        .replace("آ", "ا")
+        .replace("ٱ", "ا")
+        .replace("ى", "ي")
+        .replace("ة", "ه")
+    )
 
-# =========================================================
-# SIMILARITY
-# =========================================================
+    if keep_spaces:
+        return re.sub(r"\s+", " ", text).strip()
+
+    return text.replace(" ", "")
+
+
 def evaluate_similarity(a: str, b: str) -> int:
-    ratio = SequenceMatcher(None, a, b).ratio()
-    return round(ratio * 100)
+    return round(SequenceMatcher(None, a, b).ratio() * 100)
+
+
+def get_score_band(score: int) -> dict:
+    for band in SCORE_BANDS:
+        if band["min"] <= score <= band["max"]:
+            return band
+    return SCORE_BANDS[-1]
+
+
+def build_pronunciation_issues(expected_text: str, actual_text: str, max_issues: int = 20, category: str = "pronunciation") -> list[dict]:
+    matcher = SequenceMatcher(None, expected_text, actual_text)
+    issues: list[dict] = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+
+        expected_chunk = expected_text[i1:i2]
+        actual_chunk = actual_text[j1:j2]
+
+        if tag == "replace":
+            issue_code = "letter_replace"
+            message = (
+                f"Huruf berbeda pada posisi {i1 + 1}-{i2}: "
+                f"seharusnya '{expected_chunk}' tapi terbaca '{actual_chunk}'."
+            )
+        elif tag == "delete":
+            issue_code = "letter_missing"
+            message = (
+                f"Ada huruf yang hilang di posisi {i1 + 1}-{i2}: "
+                f"'{expected_chunk}' belum terbaca."
+            )
+        else:
+            issue_code = "letter_extra"
+            message = (
+                f"Ada huruf tambahan di sekitar posisi {i1 + 1}: "
+                f"terdengar '{actual_chunk}' padahal tidak ada pada ayat target."
+            )
+
+        issues.append(
+            {
+                "category": category,
+                "code": issue_code,
+                "location": "huruf",
+                "start_index": i1,
+                "end_index": i2,
+                "expected": expected_chunk,
+                "actual": actual_chunk,
+                "message": message,
+            }
+        )
+
+        if len(issues) >= max_issues:
+            break
+
+    return issues
+
+
+def _build_suggestions(issues: list[dict], score: int) -> list[str]:
+    if not issues and score >= 90:
+        return ["Bacaan sangat baik, pertahankan kestabilan makhraj dan tempo."]
+
+    counter = Counter(issue["code"] for issue in issues)
+    suggestions: list[str] = []
+
+    if counter["letter_replace"]:
+        suggestions.append(
+            "Fokus pada makhraj huruf yang sering tertukar; baca pelan per kata lalu naikkan tempo secara bertahap."
+        )
+    if counter["letter_missing"]:
+        suggestions.append(
+            "Ada huruf yang terlewat; hentikan sebentar di akhir setiap kata untuk memastikan semua huruf terbaca."
+        )
+    if counter["letter_extra"]:
+        suggestions.append(
+            "Kurangi penambahan bunyi spontan; ikuti teks ayat secara ketat saat latihan."
+        )
+
+    if score < 65:
+        suggestions.append("Ulangi ayat per potongan 3-5 kata sambil meniru qari referensi.")
+
+    return suggestions or ["Lanjutkan latihan rutin agar konsistensi bacaan meningkat."]
+
 
 # =========================================================
 # MAIN: EVALUATE TADARUS
 # =========================================================
 def evaluate_tadarus(original_text: str, user_text: str) -> tuple:
-    """
-    Evaluasi bacaan Tadarus:
-    - original_text = target ayat (berharakat)
-    - user_text = hasil transkripsi Whisper (tanpa harakat)
-    Return: (scores, issues, suggestions)
-    """
-
-    # Normalisasi dengan & tanpa spasi
     original_sp = normalize_quran(original_text, keep_spaces=True)
     user_sp = normalize_quran(user_text, keep_spaces=True)
 
     original_ns = normalize_quran(original_text, keep_spaces=False)
     user_ns = normalize_quran(user_text, keep_spaces=False)
 
-    # Ambil skor terbaik
     score_sp = evaluate_similarity(original_sp, user_sp)
     score_ns = evaluate_similarity(original_ns, user_ns)
     score = max(score_sp, score_ns)
 
-    # 👉 Logging untuk debug
-    print(f"[DEBUG] original_text(raw): {original_text}")
-    print(f"[DEBUG] user_text(raw): {user_text}")
-    print(f"[DEBUG] original_sp: {original_sp}")
-    print(f"[DEBUG] user_sp: {user_sp}")
-    print(f"[DEBUG] original_ns: {original_ns}")
-    print(f"[DEBUG] user_ns: {user_ns}")
     print(f"[DEBUG] score_sp: {score_sp}, score_ns: {score_ns}, final_score: {score}")
 
-    # Feedback & issues
-    if score > 90:
-        feedback = "Bacaan sangat baik 👍"
-        issues = []
-    elif score > 75:
-        feedback = "Cukup baik, beberapa bagian perlu diperhatikan"
-        issues = [{
-            "category": "kemiripan",
-            "code": "partial_match",
-            "location": "ayat",
-            "message": "Sebagian kata tidak sepenuhnya cocok setelah normalisasi"
-        }]
-    else:
-        feedback = "Perlu latihan lagi, coba ulangi dengan lebih teliti"
-        issues = [{
-            "category": "kemiripan",
-            "code": "low_match",
-            "location": "ayat",
-            "message": "Kemiripan bacaan rendah setelah normalisasi harakat dan spasi"
-        }]
+    pronunciation_issues = build_pronunciation_issues(original_ns, user_ns, category="pronunciation")
+    band = get_score_band(score)
 
-    scores = {"tadarus": score}
-    suggestions = [feedback]  # harus string langsung
+    issues = [
+        {
+            "category": "quality_band",
+            "code": band["code"],
+            "location": "overall",
+            "message": f"Kategori nilai: {band['label']} ({band['min']}-{band['max']}).",
+        },
+        *pronunciation_issues,
+    ]
+
+    scores = {
+        "tadarus": score,
+        "band": band,
+        "score_with_spaces": score_sp,
+        "score_without_spaces": score_ns,
+    }
+    suggestions = _build_suggestions(pronunciation_issues, score)
 
     return scores, issues, suggestions
