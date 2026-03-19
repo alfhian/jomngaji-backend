@@ -1,0 +1,84 @@
+from typing import List, Dict
+from app.models.evaluation_result import Issue
+from difflib import SequenceMatcher
+import re
+
+# =========================================================
+# HELPERS
+# =========================================================
+
+def normalize(text: str) -> str:
+    if not text:
+        return ""
+    text = text.strip()
+    return re.sub(r"\s+", " ", text)
+
+def similarity(a: str, b: str) -> float:
+    return SequenceMatcher(None, a, b).ratio()
+
+def tilawah_issue(code: str, message: str, location: str = "transcription"):
+    return {
+        "category": "tilawah",
+        "code": code,
+        "message": message,
+        "location": location,
+    }
+
+# =========================================================
+# CORE EVALUATION
+# =========================================================
+
+def evaluate_tilawah(transcription: str, target_text: str = "") -> Dict:
+    issues: List[Issue] = []
+    suggestions: List[str] = []
+
+    print("[TILAWAH] Raw transcription:", transcription)
+    print("[TILAWAH] Target text:", target_text)
+
+    if not transcription or not transcription.strip():
+        issues.append(tilawah_issue("EMPTY", "Tidak ada suara terdeteksi", "audio"))
+        suggestions.append("Pastikan mikrofon aktif dan ulangi bacaan Tilawah.")
+        return {
+            "scores": {"final": 0, "tilawah": 0},
+            "issues": issues,
+            "suggestions": suggestions,
+        }
+
+    text_norm = normalize(transcription)
+    target_norm = normalize(target_text)
+
+    sim = similarity(text_norm, target_norm)
+    score_sim = int(round(sim * 100))
+
+    print(f"[TILAWAH] Similarity ratio={sim:.3f} → score_sim={score_sim}")
+
+    # Evaluasi berdasarkan similarity
+    if score_sim >= 85:
+        suggestions.append("Bacaan Tilawah sudah cukup jelas dan sesuai.")
+    elif score_sim >= 60:
+        issues.append(tilawah_issue("NEAR_MISS", "Pengucapan hampir benar", "transcription"))
+        suggestions.append("Perjelas bacaan Tilawah sesuai contoh (Tartil/Hadr/Basmalah).")
+    else:
+        issues.append(tilawah_issue("MISMATCH", "Tidak sesuai dengan target bacaan Tilawah", "transcription"))
+        suggestions.append("Ulangi bacaan sesuai contoh Tilawah.")
+
+    # Rule-based sederhana: cek kata kunci
+    if "بِاسْمِ" in text_norm:
+        suggestions.append("Tilawah dengan Basmalah terdeteksi.")
+    elif "وَرَتِّلِ" in text_norm:
+        suggestions.append("Tilawah Tartil terdeteksi.")
+    elif len(text_norm.split()) > 8:
+        suggestions.append("Bacaan cepat (Hadr) terdeteksi, pastikan tetap sesuai tajwid.")
+
+    score_final = score_sim
+
+    print(f"[TILAWAH] Final score={score_final}")
+
+    return {
+        "scores": {
+            "final": score_final,
+            "tilawah": score_final
+        },
+        "issues": issues,
+        "suggestions": suggestions
+    }
