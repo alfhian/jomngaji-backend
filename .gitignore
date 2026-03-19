@@ -1,1 +1,5 @@
-.jomngaji_env/
+venv/
+jomngaji_env/
+*.dll
+*.pdb
+*.exe
