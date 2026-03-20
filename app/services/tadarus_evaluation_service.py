@@ -36,6 +36,7 @@ def evaluate_and_save_tadarus(
             },
             "issues": [{"message": "Tidak ada bacaan valid"}],
             "suggestions": ["Bacalah dengan suara jelas dan durasi cukup"],
+            "score_band": None,
             "progress": None,
         }
 
@@ -43,7 +44,9 @@ def evaluate_and_save_tadarus(
     # 2. AMBIL DATA DARI RESULT
     # =========================
     scores = result["scores"]
-    user_text = result["texts"]["user"]     # ✅ FIX
+    issues = result.get("issues", [])
+    suggestions = result.get("suggestions", [])
+    user_text = result["texts"]["user"]
     ref_text = result["texts"]["reference"]
 
     # =========================
@@ -58,8 +61,8 @@ def evaluate_and_save_tadarus(
         score_audio=scores["audio"],
         asr_user=user_text,      # ✅ FIX
         asr_ref=ref_text,
-        issues=[],
-        suggestions=[],
+        issues=issues,
+        suggestions=suggestions,
     )
 
     # =========================
@@ -81,5 +84,8 @@ def evaluate_and_save_tadarus(
             "reference": ref_text,
         },
         "scores": scores,
+        "issues": issues,
+        "suggestions": suggestions,
+        "score_band": scores.get("band"),
         "progress": progress,
     }
