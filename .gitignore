@@ -3,3 +3,5 @@ jomngaji_env/
 *.dll
 *.pdb
 *.exe
+temp/
+__pycache__/
