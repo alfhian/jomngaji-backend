@@ -3,7 +3,8 @@ import re
 
 from app.services.tadarus_service import get_score_band, normalize_quran, build_pronunciation_issues
 
-VOWELS = {"ا", "أ", "إ", "آ", "و", "ي"}
+VOWELS = {"ا", "أ", "إ", "آ", "و", "ي", "ى", "ؤ", "ئ"}
+ALIF_VARIANTS = {"ا", "أ", "إ", "آ", "ى"}
 ARABIC_DIACRITICS = r"[ًٌٍَُِّْ]"
 
 
@@ -56,6 +57,15 @@ def evaluate_hijaiyah(transcription: str, target_letter: str):
         text_norm = transcription.strip()
     if not target_norm:
         target_norm = target_letter.strip()
+
+    if (
+        len(target_norm) == 1
+        and target_norm not in VOWELS
+        and text_norm.startswith(target_norm)
+        and len(text_norm) > 1
+        and all(ch in ALIF_VARIANTS for ch in text_norm[1:])
+    ):
+        text_norm = target_norm
 
     if text_norm == target_norm:
         return {
