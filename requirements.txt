@@ -17,7 +17,8 @@ faster-whisper==1.2.1
 torch==2.10.0
 torchaudio==2.10.0
 transformers==4.57.3
-numpy==2.4.2
+numpy>=1.22,<2.4
+# Keep <2.4 to avoid numba conflict in environments that include librosa/numba
 pydub==0.25.1
 
 # Utilities
