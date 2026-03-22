@@ -103,6 +103,24 @@ def get_best_tajwid_score(user_id: int, quiz_code: str):
     return row
 
 
+def get_best_tajwid_score_by_lesson(user_id: int, lesson_id: int):
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT MAX(score_final) AS best_score
+        FROM tajwid_evaluations
+        WHERE user_id = %s AND lesson_id = %s
+        """,
+        (user_id, lesson_id),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    db.close()
+    return row
+
+
 from app.services.auth_service import get_db
 
 def get_average_tajwid_score(user_id: int) -> float:
@@ -127,4 +145,3 @@ def get_average_tajwid_score(user_id: int) -> float:
 
     # Konversi ke float agar tidak bentrok dengan Decimal
     return float(row["avg_score"]) if row and row["avg_score"] is not None else 0.0
-

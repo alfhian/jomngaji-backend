@@ -61,6 +61,7 @@ from app.repositories.tajwid_repo import (
     get_last_tajwid_evaluation,
     get_average_tajwid_score,
     get_tajwid_progress,
+    get_best_tajwid_score_by_lesson,
 )
 
 from app.repositories.tilawah_repo import (
@@ -645,6 +646,17 @@ async def evaluate_tajwid_endpoint(
 @app.get("/evaluate/tajwid/last")
 def get_last_tajwid(user_id: int = Depends(get_current_user), lesson_id: int = Query(...)):
     return get_last_tajwid_evaluation(user_id, lesson_id)
+
+
+@app.get("/evaluate/tajwid/best")
+def get_best_tajwid(user_id: int = Depends(get_current_user), lesson_id: int = Query(...)):
+    row = get_best_tajwid_score_by_lesson(user_id, lesson_id)
+    best_score = row["best_score"] if row and row["best_score"] is not None else 0
+    return {
+        "user_id": user_id,
+        "lesson_id": lesson_id,
+        "best_score": int(best_score),
+    }
 
 
 @app.post("/evaluate/tilawah")
