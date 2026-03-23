@@ -87,6 +87,10 @@ from app.services.tajwid_exam_service import (
     submit_tajwid_exam,
     get_tajwid_exam_progress,
 )
+from app.services.tilawah_exam_service import (
+    submit_tilawah_exam,
+    get_tilawah_exam_progress,
+)
 
 from app.services.suku_kata_service import (
     get_suku_kata_levels,
@@ -423,6 +427,24 @@ def submit_tajwid_exam_endpoint(
     user_id: int = Depends(get_current_user),
 ):
     return submit_tajwid_exam(
+        user_id=user_id,
+        total_questions=payload["total_questions"],
+        correct_answers=payload["correct_answers"],
+        recording_scores=payload.get("recording_scores", []),
+    )
+
+
+@app.get("/tilawah-exam/progress")
+def tilawah_exam_progress(user_id: int = Depends(get_current_user)):
+    return get_tilawah_exam_progress(user_id)
+
+
+@app.post("/tilawah-exam/submit")
+def submit_tilawah_exam_endpoint(
+    payload: dict,
+    user_id: int = Depends(get_current_user),
+):
+    return submit_tilawah_exam(
         user_id=user_id,
         total_questions=payload["total_questions"],
         correct_answers=payload["correct_answers"],
