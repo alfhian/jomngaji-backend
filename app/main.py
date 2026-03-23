@@ -83,6 +83,10 @@ from app.services.iqra_exam_service import (
     submit_iqra_exam,
     get_exam_progress,
 )
+from app.services.tajwid_exam_service import (
+    submit_tajwid_exam,
+    get_tajwid_exam_progress,
+)
 
 from app.services.suku_kata_service import (
     get_suku_kata_levels,
@@ -401,6 +405,24 @@ def submit_iqra_exam_endpoint(
     user_id: int = Depends(get_current_user),
 ):
     return submit_iqra_exam(
+        user_id=user_id,
+        total_questions=payload["total_questions"],
+        correct_answers=payload["correct_answers"],
+        recording_scores=payload.get("recording_scores", []),
+    )
+
+
+@app.get("/tajwid-exam/progress")
+def tajwid_exam_progress(user_id: int = Depends(get_current_user)):
+    return get_tajwid_exam_progress(user_id)
+
+
+@app.post("/tajwid-exam/submit")
+def submit_tajwid_exam_endpoint(
+    payload: dict,
+    user_id: int = Depends(get_current_user),
+):
+    return submit_tajwid_exam(
         user_id=user_id,
         total_questions=payload["total_questions"],
         correct_answers=payload["correct_answers"],
