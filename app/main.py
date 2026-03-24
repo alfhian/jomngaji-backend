@@ -932,6 +932,69 @@ def progress_average(user_id: int = Depends(get_current_user)):
     }
 
 
+@app.get("/progress/all")
+def get_all_progress(
+    user_id: int = Depends(get_current_user),
+    surah: int | None = Query(None),
+    tajwid_lesson_id: int = Query(1),
+    tilawah_lesson_id: int = Query(1),
+    tahfidz_lesson_id: int = Query(1),
+):
+    hijaiyah_progress_data = get_hijaiyah_progress(user_id) or {}
+    hijaiyah_global_data = get_hijaiyah_global_progress(user_id) or {}
+    hijaiyah_last_data = get_last_hijaiyah_activity(user_id) or {}
+
+    iqra_exam_data = get_exam_progress(user_id) or {}
+    tajwid_exam_data = get_tajwid_exam_progress(user_id) or {}
+    tilawah_exam_data = get_tilawah_exam_progress(user_id) or {}
+    tahfidz_exam_data = get_tahfidz_exam_progress(user_id) or {}
+
+    tadarus_global_data = get_global_progress(user_id) or {}
+    tadarus_last_data = get_last_activity(user_id) or {}
+    tadarus_surah_data = get_progress_by_surah(user_id, surah) if surah is not None else None
+
+    tajwid_last_eval = get_last_tajwid_evaluation(user_id, lesson_id=tajwid_lesson_id) or {}
+    tilawah_last_eval = get_last_tilawah_evaluation(user_id, lesson_id=tilawah_lesson_id) or {}
+    tahfidz_last_eval = get_last_tahfidz_evaluation(user_id, lesson_id=tahfidz_lesson_id) or {}
+
+    avg_data = {
+        "iqra_avg": float(hijaiyah_global_data.get("average_score", 0) or 0),
+        "tajwid_avg": get_average_tajwid_score(user_id),
+        "tilawah_avg": get_average_tilawah_score(user_id),
+        "tahfidz_avg": get_average_tahfidz_score(user_id),
+    }
+    avg_data["overall_avg"] = (
+        avg_data["iqra_avg"] + avg_data["tajwid_avg"] + avg_data["tilawah_avg"] + avg_data["tahfidz_avg"]
+    ) / 4
+
+    return {
+        "hijaiyah": {
+            "progress": hijaiyah_progress_data,
+            "global_progress": hijaiyah_global_data,
+            "last_activity": hijaiyah_last_data,
+        },
+        "iqra_exam": iqra_exam_data,
+        "tajwid": {
+            "exam_progress": tajwid_exam_data,
+            "last_evaluation": tajwid_last_eval,
+        },
+        "tilawah": {
+            "exam_progress": tilawah_exam_data,
+            "last_evaluation": tilawah_last_eval,
+        },
+        "tahfidz": {
+            "exam_progress": tahfidz_exam_data,
+            "last_evaluation": tahfidz_last_eval,
+        },
+        "tadarus": {
+            "global_progress": tadarus_global_data,
+            "last_activity": tadarus_last_data,
+            "surah_progress": tadarus_surah_data,
+        },
+        "average": avg_data,
+    }
+
+
 # =========================
 # AUTH - RESET PASSWORD
 # =========================
