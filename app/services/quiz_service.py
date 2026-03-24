@@ -151,3 +151,26 @@ def get_best_progress_by_quiz_type(user_id: int, quiz_type: str, pass_threshold:
         "best_score": best.get("best_score", 0),
     }
 
+
+def get_quiz_completion_summary_by_type(user_id: int, quiz_type: str, pass_threshold: int = PASSING_SCORE):
+    quiz_codes = get_quiz_codes_by_type(quiz_type)
+    if not quiz_codes:
+        return {
+            "quiz_type": quiz_type,
+            "quiz_codes": [],
+            "total_quizzes": 0,
+            "passed_quizzes": 0,
+        }
+
+    passed = 0
+    for code in quiz_codes:
+        result = get_quiz_progress(user_id, code, pass_threshold=pass_threshold)
+        if result and result.get("passed"):
+            passed += 1
+
+    return {
+        "quiz_type": quiz_type,
+        "quiz_codes": quiz_codes,
+        "total_quizzes": len(quiz_codes),
+        "passed_quizzes": passed,
+    }

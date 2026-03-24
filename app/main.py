@@ -109,6 +109,7 @@ from app.services.quiz_service import (
     submit_quiz,
     get_quiz_progress,
     get_best_progress_by_quiz_type,
+    get_quiz_completion_summary_by_type,
 )
 
 from app.services.tadarus_asr_service import transcribe_tadarus
@@ -961,38 +962,65 @@ def get_all_progress(
     iqra_exam_progress = float(iqra_exam_data.get("progress", 0) or 0)
     iqra_combined = round((iqra_latihan_progress * 0.5) + (iqra_exam_progress * 0.5), 4)
 
-    tajwid_latihan_data = (
-        get_tajwid_progress(user_id, tajwid_quiz_code)
-        if tajwid_quiz_code
-        else get_best_progress_by_quiz_type(user_id, "tajwid")
-    )
+    tajwid_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tajwid")
+    tajwid_quiz_codes = [tajwid_quiz_code] if tajwid_quiz_code else tajwid_quiz_summary.get("quiz_codes", [])
+    tajwid_pron_passed = 0
+    for code in tajwid_quiz_codes:
+        prog = get_tajwid_progress(user_id, code)
+        if prog.get("passed"):
+            tajwid_pron_passed += 1
+    tajwid_latihan_data = {
+        "quiz": tajwid_quiz_summary,
+        "pronunciation": {
+            "total": len(tajwid_quiz_codes),
+            "passed": tajwid_pron_passed,
+        },
+    }
     tajwid_exam_data = get_tajwid_exam_progress(user_id) or {}
-    tajwid_combined = min(
-        1.0,
-        float(tajwid_latihan_data.get("progress", 0) or 0) + (float(tajwid_exam_data.get("progress", 0) or 0) * 0.5),
-    )
+    tajwid_exam_done = 1 if float(tajwid_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tajwid_total_items = tajwid_quiz_summary.get("total_quizzes", 0) + len(tajwid_quiz_codes) + 1
+    tajwid_done_items = tajwid_quiz_summary.get("passed_quizzes", 0) + tajwid_pron_passed + tajwid_exam_done
+    tajwid_combined = round((tajwid_done_items / tajwid_total_items), 4) if tajwid_total_items else 0
 
-    tilawah_latihan_data = (
-        get_tilawah_progress(user_id, tilawah_quiz_code)
-        if tilawah_quiz_code
-        else get_best_progress_by_quiz_type(user_id, "tilawah")
-    )
+    tilawah_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tilawah")
+    tilawah_quiz_codes = [tilawah_quiz_code] if tilawah_quiz_code else tilawah_quiz_summary.get("quiz_codes", [])
+    tilawah_pron_passed = 0
+    for code in tilawah_quiz_codes:
+        prog = get_tilawah_progress(user_id, code)
+        if prog.get("passed"):
+            tilawah_pron_passed += 1
+    tilawah_latihan_data = {
+        "quiz": tilawah_quiz_summary,
+        "pronunciation": {
+            "total": len(tilawah_quiz_codes),
+            "passed": tilawah_pron_passed,
+        },
+    }
     tilawah_exam_data = get_tilawah_exam_progress(user_id) or {}
-    tilawah_combined = min(
-        1.0,
-        float(tilawah_latihan_data.get("progress", 0) or 0) + (float(tilawah_exam_data.get("progress", 0) or 0) * 0.5),
-    )
+    tilawah_exam_done = 1 if float(tilawah_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tilawah_total_items = tilawah_quiz_summary.get("total_quizzes", 0) + len(tilawah_quiz_codes) + 1
+    tilawah_done_items = tilawah_quiz_summary.get("passed_quizzes", 0) + tilawah_pron_passed + tilawah_exam_done
+    tilawah_combined = round((tilawah_done_items / tilawah_total_items), 4) if tilawah_total_items else 0
 
-    tahfidz_latihan_data = (
-        get_tahfidz_progress(user_id, tahfidz_quiz_code)
-        if tahfidz_quiz_code
-        else get_best_progress_by_quiz_type(user_id, "tahfidz")
-    )
+    tahfidz_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tahfidz")
+    tahfidz_quiz_codes = [tahfidz_quiz_code] if tahfidz_quiz_code else tahfidz_quiz_summary.get("quiz_codes", [])
+    tahfidz_pron_passed = 0
+    for code in tahfidz_quiz_codes:
+        prog = get_tahfidz_progress(user_id, code)
+        if prog.get("passed"):
+            tahfidz_pron_passed += 1
+    tahfidz_latihan_data = {
+        "quiz": tahfidz_quiz_summary,
+        "pronunciation": {
+            "total": len(tahfidz_quiz_codes),
+            "passed": tahfidz_pron_passed,
+        },
+    }
     tahfidz_exam_data = get_tahfidz_exam_progress(user_id) or {}
-    tahfidz_combined = min(
-        1.0,
-        float(tahfidz_latihan_data.get("progress", 0) or 0) + (float(tahfidz_exam_data.get("progress", 0) or 0) * 0.5),
-    )
+    tahfidz_exam_done = 1 if float(tahfidz_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tahfidz_total_items = tahfidz_quiz_summary.get("total_quizzes", 0) + len(tahfidz_quiz_codes) + 1
+    tahfidz_done_items = tahfidz_quiz_summary.get("passed_quizzes", 0) + tahfidz_pron_passed + tahfidz_exam_done
+    tahfidz_combined = round((tahfidz_done_items / tahfidz_total_items), 4) if tahfidz_total_items else 0
 
     tadarus_global_data = get_global_progress(user_id) or {}
     tadarus_last_data = get_last_activity(user_id) or {}
