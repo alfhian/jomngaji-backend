@@ -20,6 +20,25 @@ def get_quiz_by_code(quiz_code: str):
     return quiz
 
 
+def get_quiz_codes_by_type(quiz_type: str) -> list[str]:
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT quiz_code
+        FROM quizzes
+        WHERE quiz_type = %s AND is_active = 1
+        ORDER BY id ASC
+        """,
+        (quiz_type,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    db.close()
+    return [r["quiz_code"] for r in rows]
+
+
 # =========================================
 # GET QUESTIONS
 # =========================================

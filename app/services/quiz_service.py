@@ -1,5 +1,6 @@
 from app.repositories.quiz_repo import (
     get_quiz_by_code,
+    get_quiz_codes_by_type,
     get_questions_by_quiz_id,
     get_options_by_question_id,
     get_question_by_id,
@@ -111,4 +112,42 @@ def get_quiz_progress(user_id: int, quiz_code: str, pass_threshold: int = PASSIN
         "best_score": best_score,  # ✅ skor tertinggi
     }
 
+
+def get_best_progress_by_quiz_type(user_id: int, quiz_type: str, pass_threshold: int = PASSING_SCORE):
+    quiz_codes = get_quiz_codes_by_type(quiz_type)
+    if not quiz_codes:
+        return {
+            "quiz_type": quiz_type,
+            "quiz_code": None,
+            "progress": 0.0,
+            "passed": False,
+            "score": 0,
+            "best_score": 0,
+        }
+
+    candidates = []
+    for code in quiz_codes:
+        result = get_quiz_progress(user_id, code, pass_threshold=pass_threshold)
+        if result:
+            candidates.append(result)
+
+    if not candidates:
+        return {
+            "quiz_type": quiz_type,
+            "quiz_code": None,
+            "progress": 0.0,
+            "passed": False,
+            "score": 0,
+            "best_score": 0,
+        }
+
+    best = max(candidates, key=lambda x: (x.get("progress", 0), x.get("best_score", 0), x.get("score", 0)))
+    return {
+        "quiz_type": quiz_type,
+        "quiz_code": best.get("quiz_code"),
+        "progress": best.get("progress", 0.0),
+        "passed": best.get("passed", False),
+        "score": best.get("score", 0),
+        "best_score": best.get("best_score", 0),
+    }
 

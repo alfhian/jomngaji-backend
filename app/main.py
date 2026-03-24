@@ -108,6 +108,7 @@ from app.services.quiz_service import (
     fetch_quiz_questions,
     submit_quiz,
     get_quiz_progress,
+    get_best_progress_by_quiz_type,
 )
 
 from app.services.tadarus_asr_service import transcribe_tadarus
@@ -907,12 +908,19 @@ def progress_summary(user_id: int = Depends(get_current_user)):
     tajwid = get_last_tajwid_evaluation(user_id, lesson_id=1) or {}
     tilawah = get_last_tilawah_evaluation(user_id, lesson_id=1) or {}
     tahfidz = get_last_tahfidz_evaluation(user_id, lesson_id=1) or {}
+    tajwid_quiz = get_best_progress_by_quiz_type(user_id, "tajwid")
+    tilawah_quiz = get_best_progress_by_quiz_type(user_id, "tilawah")
+    tahfidz_quiz = get_best_progress_by_quiz_type(user_id, "tahfidz")
+
+    tajwid_score = tajwid.get("score_final", 0) or tajwid_quiz.get("score", 0)
+    tilawah_score = tilawah.get("score_final", 0) or tilawah_quiz.get("score", 0)
+    tahfidz_score = tahfidz.get("score_final", 0) or tahfidz_quiz.get("score", 0)
 
     return {
         "iqra_score": hijaiyah.get("score", 0),
-        "tajwid_score": tajwid.get("score_final", 0),
-        "tilawah_score": tilawah.get("score_final", 0),
-        "tahfidz_score": tahfidz.get("score_final", 0),
+        "tajwid_score": tajwid_score,
+        "tilawah_score": tilawah_score,
+        "tahfidz_score": tahfidz_score,
     }
 
 
@@ -953,21 +961,33 @@ def get_all_progress(
     iqra_exam_progress = float(iqra_exam_data.get("progress", 0) or 0)
     iqra_combined = round((iqra_latihan_progress * 0.5) + (iqra_exam_progress * 0.5), 4)
 
-    tajwid_latihan_data = get_tajwid_progress(user_id, tajwid_quiz_code) if tajwid_quiz_code else {}
+    tajwid_latihan_data = (
+        get_tajwid_progress(user_id, tajwid_quiz_code)
+        if tajwid_quiz_code
+        else get_best_progress_by_quiz_type(user_id, "tajwid")
+    )
     tajwid_exam_data = get_tajwid_exam_progress(user_id) or {}
     tajwid_combined = min(
         1.0,
         float(tajwid_latihan_data.get("progress", 0) or 0) + (float(tajwid_exam_data.get("progress", 0) or 0) * 0.5),
     )
 
-    tilawah_latihan_data = get_tilawah_progress(user_id, tilawah_quiz_code) if tilawah_quiz_code else {}
+    tilawah_latihan_data = (
+        get_tilawah_progress(user_id, tilawah_quiz_code)
+        if tilawah_quiz_code
+        else get_best_progress_by_quiz_type(user_id, "tilawah")
+    )
     tilawah_exam_data = get_tilawah_exam_progress(user_id) or {}
     tilawah_combined = min(
         1.0,
         float(tilawah_latihan_data.get("progress", 0) or 0) + (float(tilawah_exam_data.get("progress", 0) or 0) * 0.5),
     )
 
-    tahfidz_latihan_data = get_tahfidz_progress(user_id, tahfidz_quiz_code) if tahfidz_quiz_code else {}
+    tahfidz_latihan_data = (
+        get_tahfidz_progress(user_id, tahfidz_quiz_code)
+        if tahfidz_quiz_code
+        else get_best_progress_by_quiz_type(user_id, "tahfidz")
+    )
     tahfidz_exam_data = get_tahfidz_exam_progress(user_id) or {}
     tahfidz_combined = min(
         1.0,
