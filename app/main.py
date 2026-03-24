@@ -68,12 +68,14 @@ from app.repositories.tilawah_repo import (
     save_tilawah_evaluation,
     get_last_tilawah_evaluation,
     get_average_tilawah_score,
+    get_tilawah_progress,
 )
 
 from app.repositories.tahfidz_repo import (
     save_tahfidz_evaluation,
     get_last_tahfidz_evaluation,
     get_average_tahfidz_score,
+    get_tahfidz_progress,
 )
 
 # =========================
@@ -936,18 +938,41 @@ def progress_average(user_id: int = Depends(get_current_user)):
 def get_all_progress(
     user_id: int = Depends(get_current_user),
     surah: int | None = Query(None),
+    tajwid_quiz_code: str | None = Query(None),
+    tilawah_quiz_code: str | None = Query(None),
+    tahfidz_quiz_code: str | None = Query(None),
     tajwid_lesson_id: int = Query(1),
     tilawah_lesson_id: int = Query(1),
     tahfidz_lesson_id: int = Query(1),
 ):
-    hijaiyah_progress_data = get_hijaiyah_progress(user_id) or {}
     hijaiyah_global_data = get_hijaiyah_global_progress(user_id) or {}
     hijaiyah_last_data = get_last_hijaiyah_activity(user_id) or {}
-
     iqra_exam_data = get_exam_progress(user_id) or {}
+
+    iqra_latihan_progress = float(hijaiyah_global_data.get("percentage", 0) or 0) / 100
+    iqra_exam_progress = float(iqra_exam_data.get("progress", 0) or 0)
+    iqra_combined = round((iqra_latihan_progress * 0.5) + (iqra_exam_progress * 0.5), 4)
+
+    tajwid_latihan_data = get_tajwid_progress(user_id, tajwid_quiz_code) if tajwid_quiz_code else {}
     tajwid_exam_data = get_tajwid_exam_progress(user_id) or {}
+    tajwid_combined = min(
+        1.0,
+        float(tajwid_latihan_data.get("progress", 0) or 0) + (float(tajwid_exam_data.get("progress", 0) or 0) * 0.5),
+    )
+
+    tilawah_latihan_data = get_tilawah_progress(user_id, tilawah_quiz_code) if tilawah_quiz_code else {}
     tilawah_exam_data = get_tilawah_exam_progress(user_id) or {}
+    tilawah_combined = min(
+        1.0,
+        float(tilawah_latihan_data.get("progress", 0) or 0) + (float(tilawah_exam_data.get("progress", 0) or 0) * 0.5),
+    )
+
+    tahfidz_latihan_data = get_tahfidz_progress(user_id, tahfidz_quiz_code) if tahfidz_quiz_code else {}
     tahfidz_exam_data = get_tahfidz_exam_progress(user_id) or {}
+    tahfidz_combined = min(
+        1.0,
+        float(tahfidz_latihan_data.get("progress", 0) or 0) + (float(tahfidz_exam_data.get("progress", 0) or 0) * 0.5),
+    )
 
     tadarus_global_data = get_global_progress(user_id) or {}
     tadarus_last_data = get_last_activity(user_id) or {}
@@ -968,23 +993,32 @@ def get_all_progress(
     ) / 4
 
     return {
-        "hijaiyah": {
-            "progress": hijaiyah_progress_data,
-            "global_progress": hijaiyah_global_data,
-            "last_activity": hijaiyah_last_data,
+        "iqra": {
+            "latihan": {
+                "global_progress": hijaiyah_global_data,
+                "last_activity": hijaiyah_last_data,
+                "progress": iqra_latihan_progress,
+            },
+            "exam": iqra_exam_data,
+            "combined_progress": iqra_combined,
         },
-        "iqra_exam": iqra_exam_data,
         "tajwid": {
+            "latihan": tajwid_latihan_data,
             "exam_progress": tajwid_exam_data,
             "last_evaluation": tajwid_last_eval,
+            "combined_progress": tajwid_combined,
         },
         "tilawah": {
+            "latihan": tilawah_latihan_data,
             "exam_progress": tilawah_exam_data,
             "last_evaluation": tilawah_last_eval,
+            "combined_progress": tilawah_combined,
         },
         "tahfidz": {
+            "latihan": tahfidz_latihan_data,
             "exam_progress": tahfidz_exam_data,
             "last_evaluation": tahfidz_last_eval,
+            "combined_progress": tahfidz_combined,
         },
         "tadarus": {
             "global_progress": tadarus_global_data,
