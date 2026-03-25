@@ -189,7 +189,7 @@ def update_hijaiyah_after_evaluation(
     cursor.execute(
         """
         UPDATE hijaiyah_progress
-        SET completed_letters=%s
+        SET completed_letters = LEAST(%s, total_letters)
         WHERE user_id=%s AND lesson_id=%s
         """,
         (completed, user_id, lesson_id),
@@ -227,7 +227,7 @@ def update_hijaiyah_after_evaluation(
     )
     row = cursor.fetchone()
 
-    if row and row["completed_letters"] == row["total_letters"]:
+    if row and row["completed_letters"] >= row["total_letters"]:
         cursor.execute(
             """
             INSERT IGNORE INTO hijaiyah_lesson_unlocks (user_id, lesson_id)
