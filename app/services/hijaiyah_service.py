@@ -3,8 +3,31 @@ import re
 
 from app.services.tadarus_service import get_score_band, normalize_quran, build_pronunciation_issues
 
-VOWELS = {"ا", "أ", "إ", "آ", "و", "ي"}
+VOWELS = {"ا", "أ", "إ", "آ", "و", "ي", "ى", "ؤ", "ئ"}
+ALIF_VARIANTS = {"ا", "أ", "إ", "آ", "ى"}
 ARABIC_DIACRITICS = r"[ًٌٍَُِّْ]"
+COMMON_ASR_CONFUSIONS = {
+    ("س", "ث"),
+    ("ث", "س"),
+    ("س", "ص"),
+    ("ص", "س"),
+    ("ز", "ذ"),
+    ("ذ", "ز"),
+    ("ز", "ظ"),
+    ("ظ", "ز"),
+    ("ض", "ظ"),
+    ("ظ", "ض"),
+    ("ت", "ط"),
+    ("ط", "ت"),
+    ("ح", "ه"),
+    ("ه", "ح"),
+    ("ق", "ك"),
+    ("ك", "ق"),
+    ("خ", "غ"),
+    ("غ", "خ"),
+    ("ش", "س"),
+    ("س", "ش"),
+}
 
 
 def normalize(text: str) -> str:
@@ -57,6 +80,14 @@ def evaluate_hijaiyah(transcription: str, target_letter: str):
     if not target_norm:
         target_norm = target_letter.strip()
 
+    if (
+        len(target_norm) == 1
+        and target_norm not in VOWELS
+        and len(text_norm) > 1
+        and all(ch in ALIF_VARIANTS for ch in text_norm[1:])
+    ):
+        text_norm = text_norm[0]
+
     if text_norm == target_norm:
         return {
             "scores": {"hijaiyah": 100, "band": get_score_band(100)},
@@ -65,6 +96,9 @@ def evaluate_hijaiyah(transcription: str, target_letter: str):
         }
 
     sim = similarity(text_norm, target_norm)
+    if len(text_norm) == 1 and len(target_norm) == 1 and (text_norm, target_norm) in COMMON_ASR_CONFUSIONS:
+        sim = max(sim, 0.8)
+
     score = int(round(sim * 100))
     band = get_score_band(score)
 
@@ -77,6 +111,9 @@ def evaluate_hijaiyah(transcription: str, target_letter: str):
         suggestions.append("Huruf sudah benar, hindari tambahan suara.")
         score = min(score, 85)
         band = get_score_band(score)
+    elif len(text_norm) == 1 and len(target_norm) == 1 and (text_norm, target_norm) in COMMON_ASR_CONFUSIONS:
+        issues.append(hijaiyah_issue("ASR_CONFUSION", "Transkripsi terdeteksi huruf yang makhrajnya berdekatan"))
+        suggestions.append("Pengucapan cukup dekat, ulangi dengan menonjolkan ujung lidah untuk huruf target.")
     elif sim >= 0.75 if len(target_norm) == 1 else sim >= 0.6:
         issues.append(hijaiyah_issue("NEAR_MISS", "Pengucapan hampir benar"))
         suggestions.append("Perjelas makhraj huruf dan ulangi perlahan.")

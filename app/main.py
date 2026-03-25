@@ -61,18 +61,21 @@ from app.repositories.tajwid_repo import (
     get_last_tajwid_evaluation,
     get_average_tajwid_score,
     get_tajwid_progress,
+    get_best_tajwid_score_by_lesson,
 )
 
 from app.repositories.tilawah_repo import (
     save_tilawah_evaluation,
     get_last_tilawah_evaluation,
     get_average_tilawah_score,
+    get_tilawah_progress,
 )
 
 from app.repositories.tahfidz_repo import (
     save_tahfidz_evaluation,
     get_last_tahfidz_evaluation,
     get_average_tahfidz_score,
+    get_tahfidz_progress,
 )
 
 # =========================
@@ -81,6 +84,18 @@ from app.repositories.tahfidz_repo import (
 from app.services.iqra_exam_service import (
     submit_iqra_exam,
     get_exam_progress,
+)
+from app.services.tajwid_exam_service import (
+    submit_tajwid_exam,
+    get_tajwid_exam_progress,
+)
+from app.services.tilawah_exam_service import (
+    submit_tilawah_exam,
+    get_tilawah_exam_progress,
+)
+from app.services.tahfidz_exam_service import (
+    submit_tahfidz_exam,
+    get_tahfidz_exam_progress,
 )
 
 from app.services.suku_kata_service import (
@@ -93,6 +108,8 @@ from app.services.quiz_service import (
     fetch_quiz_questions,
     submit_quiz,
     get_quiz_progress,
+    get_best_progress_by_quiz_type,
+    get_quiz_completion_summary_by_type,
 )
 
 from app.services.tadarus_asr_service import transcribe_tadarus
@@ -407,6 +424,60 @@ def submit_iqra_exam_endpoint(
     )
 
 
+@app.get("/tajwid-exam/progress")
+def tajwid_exam_progress(user_id: int = Depends(get_current_user)):
+    return get_tajwid_exam_progress(user_id)
+
+
+@app.post("/tajwid-exam/submit")
+def submit_tajwid_exam_endpoint(
+    payload: dict,
+    user_id: int = Depends(get_current_user),
+):
+    return submit_tajwid_exam(
+        user_id=user_id,
+        total_questions=payload["total_questions"],
+        correct_answers=payload["correct_answers"],
+        recording_scores=payload.get("recording_scores", []),
+    )
+
+
+@app.get("/tilawah-exam/progress")
+def tilawah_exam_progress(user_id: int = Depends(get_current_user)):
+    return get_tilawah_exam_progress(user_id)
+
+
+@app.post("/tilawah-exam/submit")
+def submit_tilawah_exam_endpoint(
+    payload: dict,
+    user_id: int = Depends(get_current_user),
+):
+    return submit_tilawah_exam(
+        user_id=user_id,
+        total_questions=payload["total_questions"],
+        correct_answers=payload["correct_answers"],
+        recording_scores=payload.get("recording_scores", []),
+    )
+
+
+@app.get("/tahfidz-exam/progress")
+def tahfidz_exam_progress(user_id: int = Depends(get_current_user)):
+    return get_tahfidz_exam_progress(user_id)
+
+
+@app.post("/tahfidz-exam/submit")
+def submit_tahfidz_exam_endpoint(
+    payload: dict,
+    user_id: int = Depends(get_current_user),
+):
+    return submit_tahfidz_exam(
+        user_id=user_id,
+        total_questions=payload["total_questions"],
+        correct_answers=payload["correct_answers"],
+        recording_scores=payload.get("recording_scores", []),
+    )
+
+
 
 @app.get("/tajwid/{quiz_code}/combined-progress")
 def tajwid_combined_progress(quiz_code: str, user_id: int = Depends(get_current_user)):
@@ -647,6 +718,17 @@ def get_last_tajwid(user_id: int = Depends(get_current_user), lesson_id: int = Q
     return get_last_tajwid_evaluation(user_id, lesson_id)
 
 
+@app.get("/evaluate/tajwid/best")
+def get_best_tajwid(user_id: int = Depends(get_current_user), lesson_id: int = Query(...)):
+    row = get_best_tajwid_score_by_lesson(user_id, lesson_id)
+    best_score = row["best_score"] if row and row["best_score"] is not None else 0
+    return {
+        "user_id": user_id,
+        "lesson_id": lesson_id,
+        "best_score": int(best_score),
+    }
+
+
 @app.post("/evaluate/tilawah")
 async def evaluate_tilawah_endpoint(
     user_id: int = Depends(get_current_user),
@@ -827,12 +909,19 @@ def progress_summary(user_id: int = Depends(get_current_user)):
     tajwid = get_last_tajwid_evaluation(user_id, lesson_id=1) or {}
     tilawah = get_last_tilawah_evaluation(user_id, lesson_id=1) or {}
     tahfidz = get_last_tahfidz_evaluation(user_id, lesson_id=1) or {}
+    tajwid_quiz = get_best_progress_by_quiz_type(user_id, "tajwid")
+    tilawah_quiz = get_best_progress_by_quiz_type(user_id, "tilawah")
+    tahfidz_quiz = get_best_progress_by_quiz_type(user_id, "tahfidz")
+
+    tajwid_score = tajwid.get("score_final", 0) or tajwid_quiz.get("score", 0)
+    tilawah_score = tilawah.get("score_final", 0) or tilawah_quiz.get("score", 0)
+    tahfidz_score = tahfidz.get("score_final", 0) or tahfidz_quiz.get("score", 0)
 
     return {
         "iqra_score": hijaiyah.get("score", 0),
-        "tajwid_score": tajwid.get("score_final", 0),
-        "tilawah_score": tilawah.get("score_final", 0),
-        "tahfidz_score": tahfidz.get("score_final", 0),
+        "tajwid_score": tajwid_score,
+        "tilawah_score": tilawah_score,
+        "tahfidz_score": tahfidz_score,
     }
 
 
@@ -851,6 +940,140 @@ def progress_average(user_id: int = Depends(get_current_user)):
         "tilawah_avg": tilawah_avg,
         "tahfidz_avg": tahfidz_avg,
         "overall_avg": overall,
+    }
+
+
+@app.get("/progress/all")
+def get_all_progress(
+    user_id: int = Depends(get_current_user),
+    surah: int | None = Query(None),
+    tajwid_quiz_code: str | None = Query(None),
+    tilawah_quiz_code: str | None = Query(None),
+    tahfidz_quiz_code: str | None = Query(None),
+    tajwid_lesson_id: int = Query(1),
+    tilawah_lesson_id: int = Query(1),
+    tahfidz_lesson_id: int = Query(1),
+):
+    hijaiyah_global_data = get_hijaiyah_global_progress(user_id) or {}
+    hijaiyah_last_data = get_last_hijaiyah_activity(user_id) or {}
+    iqra_exam_data = get_exam_progress(user_id) or {}
+
+    iqra_latihan_progress = float(hijaiyah_global_data.get("percentage", 0) or 0) / 100
+    iqra_exam_progress = float(iqra_exam_data.get("progress", 0) or 0)
+    iqra_combined = round((iqra_latihan_progress * 0.5) + (iqra_exam_progress * 0.5), 4)
+
+    tajwid_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tajwid")
+    tajwid_quiz_codes = [tajwid_quiz_code] if tajwid_quiz_code else tajwid_quiz_summary.get("quiz_codes", [])
+    tajwid_pron_passed = 0
+    for code in tajwid_quiz_codes:
+        prog = get_tajwid_progress(user_id, code)
+        if prog.get("passed"):
+            tajwid_pron_passed += 1
+    tajwid_latihan_data = {
+        "quiz": tajwid_quiz_summary,
+        "pronunciation": {
+            "total": len(tajwid_quiz_codes),
+            "passed": tajwid_pron_passed,
+        },
+    }
+    tajwid_exam_data = get_tajwid_exam_progress(user_id) or {}
+    tajwid_exam_done = 1 if float(tajwid_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tajwid_total_items = tajwid_quiz_summary.get("total_quizzes", 0) + len(tajwid_quiz_codes) + 1
+    tajwid_done_items = tajwid_quiz_summary.get("passed_quizzes", 0) + tajwid_pron_passed + tajwid_exam_done
+    tajwid_combined = round((tajwid_done_items / tajwid_total_items), 4) if tajwid_total_items else 0
+
+    tilawah_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tilawah")
+    tilawah_quiz_codes = [tilawah_quiz_code] if tilawah_quiz_code else tilawah_quiz_summary.get("quiz_codes", [])
+    tilawah_pron_passed = 0
+    for code in tilawah_quiz_codes:
+        prog = get_tilawah_progress(user_id, code)
+        if prog.get("passed"):
+            tilawah_pron_passed += 1
+    tilawah_latihan_data = {
+        "quiz": tilawah_quiz_summary,
+        "pronunciation": {
+            "total": len(tilawah_quiz_codes),
+            "passed": tilawah_pron_passed,
+        },
+    }
+    tilawah_exam_data = get_tilawah_exam_progress(user_id) or {}
+    tilawah_exam_done = 1 if float(tilawah_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tilawah_total_items = tilawah_quiz_summary.get("total_quizzes", 0) + len(tilawah_quiz_codes) + 1
+    tilawah_done_items = tilawah_quiz_summary.get("passed_quizzes", 0) + tilawah_pron_passed + tilawah_exam_done
+    tilawah_combined = round((tilawah_done_items / tilawah_total_items), 4) if tilawah_total_items else 0
+
+    tahfidz_quiz_summary = get_quiz_completion_summary_by_type(user_id, "tahfidz")
+    tahfidz_quiz_codes = [tahfidz_quiz_code] if tahfidz_quiz_code else tahfidz_quiz_summary.get("quiz_codes", [])
+    tahfidz_pron_passed = 0
+    for code in tahfidz_quiz_codes:
+        prog = get_tahfidz_progress(user_id, code)
+        if prog.get("passed"):
+            tahfidz_pron_passed += 1
+    tahfidz_latihan_data = {
+        "quiz": tahfidz_quiz_summary,
+        "pronunciation": {
+            "total": len(tahfidz_quiz_codes),
+            "passed": tahfidz_pron_passed,
+        },
+    }
+    tahfidz_exam_data = get_tahfidz_exam_progress(user_id) or {}
+    tahfidz_exam_done = 1 if float(tahfidz_exam_data.get("progress", 0) or 0) >= 1 else 0
+    tahfidz_total_items = tahfidz_quiz_summary.get("total_quizzes", 0) + len(tahfidz_quiz_codes) + 1
+    tahfidz_done_items = tahfidz_quiz_summary.get("passed_quizzes", 0) + tahfidz_pron_passed + tahfidz_exam_done
+    tahfidz_combined = round((tahfidz_done_items / tahfidz_total_items), 4) if tahfidz_total_items else 0
+
+    tadarus_global_data = get_global_progress(user_id) or {}
+    tadarus_last_data = get_last_activity(user_id) or {}
+    tadarus_surah_data = get_progress_by_surah(user_id, surah) if surah is not None else None
+
+    tajwid_last_eval = get_last_tajwid_evaluation(user_id, lesson_id=tajwid_lesson_id) or {}
+    tilawah_last_eval = get_last_tilawah_evaluation(user_id, lesson_id=tilawah_lesson_id) or {}
+    tahfidz_last_eval = get_last_tahfidz_evaluation(user_id, lesson_id=tahfidz_lesson_id) or {}
+
+    avg_data = {
+        "iqra_avg": float(hijaiyah_global_data.get("average_score", 0) or 0),
+        "tajwid_avg": get_average_tajwid_score(user_id),
+        "tilawah_avg": get_average_tilawah_score(user_id),
+        "tahfidz_avg": get_average_tahfidz_score(user_id),
+    }
+    avg_data["overall_avg"] = (
+        avg_data["iqra_avg"] + avg_data["tajwid_avg"] + avg_data["tilawah_avg"] + avg_data["tahfidz_avg"]
+    ) / 4
+
+    return {
+        "iqra": {
+            "latihan": {
+                "global_progress": hijaiyah_global_data,
+                "last_activity": hijaiyah_last_data,
+                "progress": iqra_latihan_progress,
+            },
+            "exam": iqra_exam_data,
+            "combined_progress": iqra_combined,
+        },
+        "tajwid": {
+            "latihan": tajwid_latihan_data,
+            "exam_progress": tajwid_exam_data,
+            "last_evaluation": tajwid_last_eval,
+            "combined_progress": tajwid_combined,
+        },
+        "tilawah": {
+            "latihan": tilawah_latihan_data,
+            "exam_progress": tilawah_exam_data,
+            "last_evaluation": tilawah_last_eval,
+            "combined_progress": tilawah_combined,
+        },
+        "tahfidz": {
+            "latihan": tahfidz_latihan_data,
+            "exam_progress": tahfidz_exam_data,
+            "last_evaluation": tahfidz_last_eval,
+            "combined_progress": tahfidz_combined,
+        },
+        "tadarus": {
+            "global_progress": tadarus_global_data,
+            "last_activity": tadarus_last_data,
+            "surah_progress": tadarus_surah_data,
+        },
+        "average": avg_data,
     }
 
 

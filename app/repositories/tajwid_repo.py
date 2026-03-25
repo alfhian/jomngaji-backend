@@ -1,5 +1,7 @@
-from app.services.auth_service import get_db
 import json
+
+from app.services.auth_service import get_db
+
 
 def save_tajwid_evaluation(
     user_id: int,
@@ -11,60 +13,60 @@ def save_tajwid_evaluation(
 ):
     db = get_db()
     cursor = db.cursor()
-
-    cursor.execute(
-        """
-        INSERT INTO tajwid_evaluations
-            (user_id, lesson_id, transcript, score_final, feedback, issues, evaluated_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-        """,
-        (user_id, lesson_id, transcript, score_final, feedback, json.dumps(issues, ensure_ascii=False)),
-    )
-
-    db.commit()
-    cursor.close()
-    db.close()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO tajwid_evaluations
+                (user_id, lesson_id, transcript, score_final, feedback, issues, evaluated_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+            """,
+            (user_id, lesson_id, transcript, score_final, feedback, json.dumps(issues, ensure_ascii=False)),
+        )
+        db.commit()
+    finally:
+        cursor.close()
+        db.close()
 
 
 def get_last_tajwid_evaluation(user_id: int, lesson_id: int):
     db = get_db()
     cursor = db.cursor(dictionary=True)
-
-    cursor.execute(
-        """
-        SELECT * FROM tajwid_evaluations
-        WHERE user_id = %s AND lesson_id = %s
-        ORDER BY evaluated_at DESC
-        LIMIT 1
-        """,
-        (user_id, lesson_id),
-    )
-
-    row = cursor.fetchone()
-    cursor.close()
-    db.close()
-    return row
+    try:
+        cursor.execute(
+            """
+            SELECT * FROM tajwid_evaluations
+            WHERE user_id = %s AND lesson_id = %s
+            ORDER BY evaluated_at DESC
+            LIMIT 1
+            """,
+            (user_id, lesson_id),
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        db.close()
 
 
 def get_tajwid_progress(user_id: int, quiz_code: str, pass_threshold: int = 50):
     db = get_db()
     cursor = db.cursor(dictionary=True)
-
-    # ambil attempt terakhir (untuk detail)
-    cursor.execute(
-        """
-        SELECT te.score_final
-        FROM tajwid_evaluations te
-        JOIN quizzes q ON q.id = te.lesson_id
-        WHERE te.user_id = %s AND q.quiz_code = %s
-        ORDER BY te.evaluated_at DESC
-        LIMIT 1
-        """,
-        (user_id, quiz_code),
-    )
-    last_row = cursor.fetchone()
-    cursor.close()
-    db.close()
+    try:
+        # ambil attempt terakhir (untuk detail)
+        cursor.execute(
+            """
+            SELECT te.score_final
+            FROM tajwid_evaluations te
+            JOIN quizzes q ON q.id = te.lesson_id
+            WHERE te.user_id = %s AND q.quiz_code = %s
+            ORDER BY te.evaluated_at DESC
+            LIMIT 1
+            """,
+            (user_id, quiz_code),
+        )
+        last_row = cursor.fetchone()
+    finally:
+        cursor.close()
+        db.close()
 
     # ambil skor tertinggi
     best_row = get_best_tajwid_score(user_id, quiz_code)
@@ -87,23 +89,39 @@ def get_tajwid_progress(user_id: int, quiz_code: str, pass_threshold: int = 50):
 def get_best_tajwid_score(user_id: int, quiz_code: str):
     db = get_db()
     cursor = db.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT MAX(te.score_final) AS best_score
+            FROM tajwid_evaluations te
+            JOIN quizzes q ON q.id = te.lesson_id
+            WHERE te.user_id = %s AND q.quiz_code = %s
+            """,
+            (user_id, quiz_code),
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        db.close()
 
-    cursor.execute(
-        """
-        SELECT MAX(te.score_final) AS best_score
-        FROM tajwid_evaluations te
-        JOIN quizzes q ON q.id = te.lesson_id
-        WHERE te.user_id = %s AND q.quiz_code = %s
-        """,
-        (user_id, quiz_code),
-    )
-    row = cursor.fetchone()
-    cursor.close()
-    db.close()
-    return row
 
+def get_best_tajwid_score_by_lesson(user_id: int, lesson_id: int):
+    db = get_db()
+    cursor = db.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT MAX(score_final) AS best_score
+            FROM tajwid_evaluations
+            WHERE user_id = %s AND lesson_id = %s
+            """,
+            (user_id, lesson_id),
+        )
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        db.close()
 
-from app.services.auth_service import get_db
 
 def get_average_tajwid_score(user_id: int) -> float:
     """
@@ -112,19 +130,19 @@ def get_average_tajwid_score(user_id: int) -> float:
     """
     db = get_db()
     cursor = db.cursor(dictionary=True)
-
-    cursor.execute(
-        """
-        SELECT AVG(score_final) AS avg_score
-        FROM tajwid_evaluations
-        WHERE user_id = %s
-        """,
-        (user_id,),
-    )
-    row = cursor.fetchone()
-    cursor.close()
-    db.close()
+    try:
+        cursor.execute(
+            """
+            SELECT AVG(score_final) AS avg_score
+            FROM tajwid_evaluations
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        row = cursor.fetchone()
+    finally:
+        cursor.close()
+        db.close()
 
     # Konversi ke float agar tidak bentrok dengan Decimal
     return float(row["avg_score"]) if row and row["avg_score"] is not None else 0.0
-
