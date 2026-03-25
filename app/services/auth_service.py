@@ -124,13 +124,13 @@ def create_google_user(email: str, name: str, google_id: str):
     conn.commit()
     user_id = cursor.lastrowid
 
-    token = create_access_token({"sub": str(user_id)})
-
     cursor.close()
     conn.close()
 
     return {
-        "access_token": token,
-        "userId": user_id,
-        "name": name
+        "id": user_id,
+        "email": email,
+        "name": name,
+        "google_id": google_id,
+        "provider": "google",
     }
